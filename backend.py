@@ -1,15 +1,13 @@
 import subprocess
 import os
-import time
-import tempfile
 import urllib.request
 from pathlib import Path
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from typing import Optional
 
 WIREGUARD_DIR = Path("/etc/wireguard")
 WG_QUICK = "/usr/bin/wg-quick"
-WG = "/usr/bin/wg"
+WG      = "/usr/bin/wg"
 
 
 @dataclass
@@ -27,23 +25,10 @@ class WgInfo:
     tx_bytes: int = 0
 
 
-def _run(args: list, privileged: bool = False, input_data: str = None, silent: bool = False) -> subprocess.CompletedProcess:
-    if privileged:
-        # Try sudo -n first (works if sudoers is configured)
-        r = subprocess.run(
-            ["sudo", "-n"] + args,
-            capture_output=True, text=True,
-            input=input_data, timeout=30,
-        )
-        if r.returncode == 0 or silent:
-            return r
-        # silent=False only: show pkexec for user-initiated write operations
-        return subprocess.run(
-            ["pkexec"] + args,
-            capture_output=True, text=True,
-            input=input_data, timeout=30,
-        )
-    return subprocess.run(args, capture_output=True, text=True, input=input_data, timeout=30)
+def _run(args: list, input_data: str = None, privileged: bool = False) -> subprocess.CompletedProcess:
+    """Run a command, optionally via sudo -n (never pkexec — no password prompt ever)."""
+    cmd = (["sudo", "-n"] + args) if privileged else args
+    return subprocess.run(cmd, capture_output=True, text=True, input=input_data, timeout=30)
 
 
 def format_bytes(n: int) -> str:
@@ -70,8 +55,7 @@ def get_tunnel_names() -> list[str]:
             return sorted(f.stem for f in WIREGUARD_DIR.glob("*.conf"))
     except Exception:
         pass
-    # silent=True: never show pkexec just to list files (called every 5 s by the refresh timer)
-    r = _run(["ls", str(WIREGUARD_DIR)], privileged=True, silent=True)
+    r = _run(["/usr/bin/ls", str(WIREGUARD_DIR)], privileged=True)
     if r.returncode == 0:
         return sorted(f[:-5] for f in r.stdout.split() if f.endswith(".conf"))
     return []
@@ -105,7 +89,7 @@ def get_net_stats(name: str) -> Optional[NetStats]:
     return None
 
 
-# ── WireGuard detail info (needs root) ───────────────────────────────────────
+# ── WireGuard detail info ─────────────────────────────────────────────────────
 
 def get_wg_info(name: str) -> Optional[WgInfo]:
     r = _run([WG, "show", name, "dump"], privileged=True)
@@ -114,7 +98,6 @@ def get_wg_info(name: str) -> Optional[WgInfo]:
     lines = [l for l in r.stdout.strip().splitlines() if l]
     if len(lines) < 2:
         return None
-    # peer line: pubkey psk endpoint allowed-ips handshake rx tx keepalive
     peer = lines[1].split("\t")
     if len(peer) < 7:
         return None
@@ -144,28 +127,23 @@ def read_config(name: str) -> str:
     try:
         return path.read_text()
     except PermissionError:
-        r = _run(["/bin/cat", str(path)], privileged=True)
+        r = _run(["/usr/bin/cat", str(path)], privileged=True)
         return r.stdout if r.returncode == 0 else ""
 
 
 def save_config(name: str, content: str) -> tuple[bool, str]:
     dest = str(WIREGUARD_DIR / f"{name}.conf")
-    with tempfile.NamedTemporaryFile(mode="w", suffix=".conf", delete=False) as f:
-        f.write(content)
-        tmp = f.name
-    try:
-        r = _run(["/bin/cp", tmp, dest], privileged=True)
-        if r.returncode != 0:
-            return False, (r.stderr or r.stdout).strip()
-        _run(["/bin/chmod", "600", dest], privileged=True)
-        return True, ""
-    finally:
-        os.unlink(tmp)
+    # tee reads from stdin and writes to the file as root — single call, no temp file
+    r = _run(["/usr/bin/tee", dest], input_data=content, privileged=True)
+    if r.returncode != 0:
+        return False, "Impossible d'écrire dans /etc/wireguard/. Réinstallez l'application."
+    _run(["/usr/bin/chmod", "600", dest], privileged=True)
+    return True, ""
 
 
 def delete_config(name: str) -> tuple[bool, str]:
     path = str(WIREGUARD_DIR / f"{name}.conf")
-    r = _run(["/bin/rm", path], privileged=True)
+    r = _run(["/usr/bin/rm", path], privileged=True)
     if r.returncode == 0:
         return True, ""
     return False, (r.stderr or r.stdout).strip()

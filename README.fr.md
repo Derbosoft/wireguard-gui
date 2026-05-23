@@ -20,30 +20,22 @@
 - **Importer un fichier `.conf`** — sélecteur de fichier graphique
 - **Statistiques en temps réel** — trafic (↓↑), endpoint, dernier handshake
 - **Icône dans la barre système** — menu rapide, la fenêtre se masque sans quitter l'appli
-- **Sans terminal** — l'élévation de privilèges passe par `pkexec` ou `sudo` automatiquement
+- **Aucune demande de mot de passe** — configuré automatiquement à l'installation
 
 ---
 
 ## Installation
 
-### Via le paquet .deb (recommandé)
-
-Téléchargez le dernier `.deb` depuis la [page Releases](../../releases), puis :
+Téléchargez le dernier `.deb` depuis la [page Releases](../../releases/latest), puis :
 
 ```bash
 sudo dpkg -i wireguard-gui_*.deb
-sudo apt-get install -f       # installer les dépendances manquantes
+sudo apt-get install -f
 ```
 
 L'application apparaît ensuite dans le menu des applications sous le nom **WireGuard**.
 
-### Depuis les sources
-
-```bash
-git clone https://github.com/Derbosoft/wireguard-gui.git
-cd wireguard-gui
-bash install.sh
-```
+L'installateur configure automatiquement l'accès sans mot de passe aux commandes WireGuard — aucune manipulation supplémentaire requise.
 
 ---
 
@@ -53,23 +45,11 @@ bash install.sh
 sudo apt remove wireguard-gui
 ```
 
-Pour supprimer aussi la règle sudo optionnelle :
+Pour supprimer aussi la règle sudo :
 
 ```bash
 sudo apt purge wireguard-gui
 ```
-
----
-
-## Optionnel : éviter les saisies de mot de passe
-
-Par défaut, une fenêtre d'authentification système apparaît à chaque connexion/déconnexion. Pour éviter cela :
-
-```bash
-sudo bash /opt/wireguard-gui/setup-sudoers.sh
-```
-
-Cela crée `/etc/sudoers.d/wireguard-gui`, limité uniquement aux commandes `wg-quick` et `wg`.
 
 ---
 
@@ -93,10 +73,10 @@ Nécessite `dpkg` (installé par défaut sur Ubuntu / Debian).
 | `python3-gi` | Bindings GTK pour Python |
 | `gir1.2-gtk-3.0` | Bibliothèque GTK 3 |
 | `wireguard-tools` | Commandes `wg` et `wg-quick` |
-| `pkexec` | Élévation de privilèges graphique |
+| `sudo` | Élévation de privilèges sans mot de passe |
 | `gir1.2-ayatanaappindicator3-0.1` *(recommandé)* | Icône barre système |
 
-Testé sur **Ubuntu 22.04** et **Ubuntu 24.04**. Compatible avec toute distribution basée sur Debian avec GTK 3.
+Testé sur **Ubuntu 22.04** et **Ubuntu 24.04**.
 
 ---
 
@@ -106,10 +86,12 @@ Testé sur **Ubuntu 22.04** et **Ubuntu 24.04**. Compatible avec toute distribut
 |---|---|
 | Activer un tunnel | `wg-quick up <nom>` |
 | Désactiver un tunnel | `wg-quick down <nom>` |
-| Sauvegarder une config | `cp /tmp/... /etc/wireguard/<nom>.conf` |
+| Sauvegarder une config | `tee /etc/wireguard/<nom>.conf` |
 | Supprimer une config | `rm /etc/wireguard/<nom>.conf` |
 | Lire les statistiques | `/proc/net/dev` (sans droits root) |
 | IP publique | `https://api.ipify.org` (HTTPS, aucune donnée stockée) |
+
+Toutes les commandes privilégiées passent par `sudo` avec une règle NOPASSWD limitée aux chemins WireGuard, installée automatiquement par le paquet.
 
 ---
 
@@ -122,8 +104,8 @@ wireguard-gui/
 ├── window.py      # Fenêtre principale et lignes de tunnel
 ├── editor.py      # Dialogue création / modification de tunnel
 ├── tray.py        # Icône barre système (AppIndicator3 / StatusIcon)
-├── build-deb.sh   # Script de construction du paquet .deb
-└── install.sh     # Installateur alternatif (sans .deb)
+├── wireguard.svg  # Icône de l'application
+└── build-deb.sh   # Script de construction du paquet .deb
 ```
 
 ---

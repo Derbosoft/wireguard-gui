@@ -29,33 +29,25 @@
 - **Exclusive mode** — enabling a tunnel automatically disconnects the active one
 - **Public IP display** — shows your real public IP as soon as the VPN is up
 - **Create & edit configs** — full editor built into the UI, no text editor required
-- **Import `.conf` files** — drag-and-drop style file picker
+- **Import `.conf` files** — file picker dialog
 - **Real-time stats** — traffic (↓↑), endpoint, and last handshake time
 - **System tray icon** — quick toggle menu, window hides instead of closing
-- **No terminal needed** — password prompt handled automatically via `pkexec` or `sudo`
+- **No password prompts** — configured automatically at installation
 
 ---
 
 ## Install
 
-### From .deb (recommended)
-
-Download the latest `.deb` from the [Releases page](../../releases), then run:
+Download the latest `.deb` from the [Releases page](../../releases/latest), then run:
 
 ```bash
 sudo dpkg -i wireguard-gui_*.deb
-sudo apt-get install -f       # install any missing dependencies
+sudo apt-get install -f
 ```
 
 That's it. Find the app in your application menu under **WireGuard**.
 
-### From source
-
-```bash
-git clone https://github.com/Derbosoft/wireguard-gui.git
-cd wireguard-gui
-bash install.sh
-```
+The installer automatically configures passwordless access to WireGuard commands — no extra setup needed.
 
 ---
 
@@ -65,23 +57,11 @@ bash install.sh
 sudo apt remove wireguard-gui
 ```
 
-To also remove the optional passwordless-sudo rule:
+To also remove the passwordless-sudo rule:
 
 ```bash
 sudo apt purge wireguard-gui
 ```
-
----
-
-## Optional: skip password prompts
-
-By default, a system authentication dialog appears each time you toggle a tunnel. To allow VPN management without a password prompt:
-
-```bash
-sudo bash /opt/wireguard-gui/setup-sudoers.sh
-```
-
-This creates `/etc/sudoers.d/wireguard-gui`, scoped only to the `wg-quick` and `wg` commands.
 
 ---
 
@@ -105,10 +85,10 @@ Requires `dpkg` (installed by default on Ubuntu / Debian).
 | `python3-gi` | GTK Python bindings |
 | `gir1.2-gtk-3.0` | GTK 3 library |
 | `wireguard-tools` | `wg` and `wg-quick` commands |
-| `pkexec` | Graphical privilege escalation |
+| `sudo` | Passwordless privilege escalation |
 | `gir1.2-ayatanaappindicator3-0.1` *(recommended)* | System tray icon |
 
-Tested on **Ubuntu 22.04** and **Ubuntu 24.04**. Should work on any Debian-based distribution with GTK 3.
+Tested on **Ubuntu 22.04** and **Ubuntu 24.04**.
 
 ---
 
@@ -118,10 +98,12 @@ Tested on **Ubuntu 22.04** and **Ubuntu 24.04**. Should work on any Debian-based
 |---|---|
 | Activate a tunnel | `wg-quick up <name>` |
 | Deactivate a tunnel | `wg-quick down <name>` |
-| Save a config | `cp /tmp/... /etc/wireguard/<name>.conf` |
+| Save a config | `tee /etc/wireguard/<name>.conf` |
 | Delete a config | `rm /etc/wireguard/<name>.conf` |
 | Read traffic stats | `/proc/net/dev` (no root required) |
 | Public IP | `https://api.ipify.org` (HTTPS, no data stored) |
+
+All privileged commands run via `sudo` with a NOPASSWD rule scoped to WireGuard paths, installed automatically by the package.
 
 ---
 
@@ -134,8 +116,8 @@ wireguard-gui/
 ├── window.py      # Main window and tunnel rows
 ├── editor.py      # Create / edit tunnel dialog
 ├── tray.py        # System tray icon (AppIndicator3 / StatusIcon)
-├── build-deb.sh   # Package builder
-└── install.sh     # Script-based installer (alternative to .deb)
+├── wireguard.svg  # Application icon
+└── build-deb.sh   # Package builder
 ```
 
 ---
