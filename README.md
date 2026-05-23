@@ -57,7 +57,7 @@ The installer automatically configures passwordless access to WireGuard commands
 sudo apt remove wireguard-gui
 ```
 
-To also remove the passwordless-sudo rule:
+This also removes the passwordless-sudo rule automatically. To additionally remove app files left in `/opt/wireguard-gui`:
 
 ```bash
 sudo apt purge wireguard-gui
@@ -85,7 +85,7 @@ Requires `dpkg` (installed by default on Ubuntu / Debian).
 | `python3-gi` | GTK Python bindings |
 | `gir1.2-gtk-3.0` | GTK 3 library |
 | `wireguard-tools` | `wg` and `wg-quick` commands |
-| `sudo` | Passwordless privilege escalation |
+| `sudo` | Passwordless privilege escalation (configured automatically) |
 | `gir1.2-ayatanaappindicator3-0.1` *(recommended)* | System tray icon |
 
 Tested on **Ubuntu 22.04** and **Ubuntu 24.04**.
@@ -94,16 +94,15 @@ Tested on **Ubuntu 22.04** and **Ubuntu 24.04**.
 
 ## How it works
 
-| Action | Underlying command |
+| Action | How |
 |---|---|
-| Activate a tunnel | `wg-quick up <name>` |
-| Deactivate a tunnel | `wg-quick down <name>` |
-| Save a config | `tee /etc/wireguard/<name>.conf` |
-| Delete a config | `rm /etc/wireguard/<name>.conf` |
+| Activate a tunnel | `vpn-helper up` stages config → `wg-quick up <name>` |
+| Deactivate a tunnel | `wg-quick down <name>` → config cleaned up |
+| Save / import / edit / delete | Read/write in `~/.config/wireguard-gui/` (no root needed) |
 | Read traffic stats | `/proc/net/dev` (no root required) |
 | Public IP | `https://api.ipify.org` (HTTPS, no data stored) |
 
-All privileged commands run via `sudo` with a NOPASSWD rule scoped to WireGuard paths, installed automatically by the package.
+Configs are stored in `~/.config/wireguard-gui/` — no root required for any file operation. Privileged commands (`wg-quick`, `wg`) are wrapped in a minimal helper script and run via `sudo` with a NOPASSWD rule scoped to that helper, installed automatically for all admin users (`%sudo` group).
 
 ---
 
@@ -111,13 +110,15 @@ All privileged commands run via `sudo` with a NOPASSWD rule scoped to WireGuard 
 
 ```
 wireguard-gui/
-├── main.py        # Entry point — Gtk.Application
-├── backend.py     # WireGuard operations and public IP fetch
-├── window.py      # Main window and tunnel rows
-├── editor.py      # Create / edit tunnel dialog
-├── tray.py        # System tray icon (AppIndicator3 / StatusIcon)
-├── wireguard.svg  # Application icon
-└── build-deb.sh   # Package builder
+├── main.py                          # Entry point — Gtk.Application
+├── backend.py                       # WireGuard operations and public IP fetch
+├── window.py                        # Main window and tunnel rows
+├── editor.py                        # Create / edit tunnel dialog
+├── tray.py                          # System tray icon (AppIndicator3 / StatusIcon)
+├── vpn-helper                       # Privileged helper script (run via sudo)
+├── com.github.wireguard-gui.policy  # Polkit policy (bundled in .deb)
+├── wireguard.svg                    # Application icon
+└── build-deb.sh                     # Package builder
 ```
 
 ---

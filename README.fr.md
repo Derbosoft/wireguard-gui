@@ -45,7 +45,7 @@ L'installateur configure automatiquement l'accès sans mot de passe aux commande
 sudo apt remove wireguard-gui
 ```
 
-Pour supprimer aussi la règle sudo :
+La règle sudo est supprimée automatiquement. Pour supprimer également les fichiers dans `/opt/wireguard-gui` :
 
 ```bash
 sudo apt purge wireguard-gui
@@ -73,7 +73,7 @@ Nécessite `dpkg` (installé par défaut sur Ubuntu / Debian).
 | `python3-gi` | Bindings GTK pour Python |
 | `gir1.2-gtk-3.0` | Bibliothèque GTK 3 |
 | `wireguard-tools` | Commandes `wg` et `wg-quick` |
-| `sudo` | Élévation de privilèges sans mot de passe |
+| `sudo` | Élévation de privilèges sans mot de passe (configuré automatiquement) |
 | `gir1.2-ayatanaappindicator3-0.1` *(recommandé)* | Icône barre système |
 
 Testé sur **Ubuntu 22.04** et **Ubuntu 24.04**.
@@ -82,16 +82,15 @@ Testé sur **Ubuntu 22.04** et **Ubuntu 24.04**.
 
 ## Fonctionnement
 
-| Action | Commande sous-jacente |
+| Action | Comment |
 |---|---|
-| Activer un tunnel | `wg-quick up <nom>` |
-| Désactiver un tunnel | `wg-quick down <nom>` |
-| Sauvegarder une config | `tee /etc/wireguard/<nom>.conf` |
-| Supprimer une config | `rm /etc/wireguard/<nom>.conf` |
+| Activer un tunnel | `vpn-helper up` copie la config → `wg-quick up <nom>` |
+| Désactiver un tunnel | `wg-quick down <nom>` → nettoyage de la config |
+| Sauvegarder / importer / éditer / supprimer | Lecture/écriture dans `~/.config/wireguard-gui/` (sans root) |
 | Lire les statistiques | `/proc/net/dev` (sans droits root) |
 | IP publique | `https://api.ipify.org` (HTTPS, aucune donnée stockée) |
 
-Toutes les commandes privilégiées passent par `sudo` avec une règle NOPASSWD limitée aux chemins WireGuard, installée automatiquement par le paquet.
+Les configs sont stockées dans `~/.config/wireguard-gui/` — aucun droit root requis pour les opérations sur les fichiers. Les commandes privilégiées (`wg-quick`, `wg`) passent par un script helper minimal via `sudo` avec une règle NOPASSWD limitée à ce helper, installée automatiquement pour tous les utilisateurs admin (groupe `%sudo`).
 
 ---
 
@@ -99,13 +98,15 @@ Toutes les commandes privilégiées passent par `sudo` avec une règle NOPASSWD 
 
 ```
 wireguard-gui/
-├── main.py        # Point d'entrée — Gtk.Application
-├── backend.py     # Opérations WireGuard et récupération de l'IP publique
-├── window.py      # Fenêtre principale et lignes de tunnel
-├── editor.py      # Dialogue création / modification de tunnel
-├── tray.py        # Icône barre système (AppIndicator3 / StatusIcon)
-├── wireguard.svg  # Icône de l'application
-└── build-deb.sh   # Script de construction du paquet .deb
+├── main.py                          # Point d'entrée — Gtk.Application
+├── backend.py                       # Opérations WireGuard et récupération de l'IP publique
+├── window.py                        # Fenêtre principale et lignes de tunnel
+├── editor.py                        # Dialogue création / modification de tunnel
+├── tray.py                          # Icône barre système (AppIndicator3 / StatusIcon)
+├── vpn-helper                       # Script helper privilégié (exécuté via sudo)
+├── com.github.wireguard-gui.policy  # Politique Polkit (intégrée dans le .deb)
+├── wireguard.svg                    # Icône de l'application
+└── build-deb.sh                     # Script de construction du paquet .deb
 ```
 
 ---
