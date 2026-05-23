@@ -27,16 +27,17 @@ class WgInfo:
     tx_bytes: int = 0
 
 
-def _run(args: list, privileged: bool = False, input_data: str = None) -> subprocess.CompletedProcess:
+def _run(args: list, privileged: bool = False, input_data: str = None, silent: bool = False) -> subprocess.CompletedProcess:
     if privileged:
-        # Try sudo -n first (works if sudoers is configured), else pkexec
+        # Try sudo -n first (works if sudoers is configured)
         r = subprocess.run(
             ["sudo", "-n"] + args,
             capture_output=True, text=True,
             input=input_data, timeout=30,
         )
-        if r.returncode == 0:
+        if r.returncode == 0 or silent:
             return r
+        # silent=False only: show pkexec for user-initiated write operations
         return subprocess.run(
             ["pkexec"] + args,
             capture_output=True, text=True,
@@ -69,7 +70,8 @@ def get_tunnel_names() -> list[str]:
             return sorted(f.stem for f in WIREGUARD_DIR.glob("*.conf"))
     except Exception:
         pass
-    r = _run(["ls", str(WIREGUARD_DIR)], privileged=True)
+    # silent=True: never show pkexec just to list files (called every 5 s by the refresh timer)
+    r = _run(["ls", str(WIREGUARD_DIR)], privileged=True, silent=True)
     if r.returncode == 0:
         return sorted(f[:-5] for f in r.stdout.split() if f.endswith(".conf"))
     return []
