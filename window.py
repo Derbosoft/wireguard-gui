@@ -418,7 +418,6 @@ class MainWindow(Gtk.ApplicationWindow):
             backend.toggle_tunnel(name, False)
         ok, err = backend.delete_config(name)
         if ok:
-            self._rows.pop(name, None)
             self._load_tunnels()
         else:
             self._show_error("Impossible de supprimer la configuration", err)

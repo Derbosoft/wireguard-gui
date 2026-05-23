@@ -1,0 +1,25 @@
+#!/bin/bash
+# Privileged helper for wireguard-gui. Run via pkexec — never call directly.
+set -euo pipefail
+
+case "${1:-}" in
+    up)
+        CONF="$2"
+        NAME="$(basename "$CONF" .conf)"
+        mkdir -p /etc/wireguard
+        install -m 600 -o root -g root "$CONF" "/etc/wireguard/${NAME}.conf"
+        exec /usr/bin/wg-quick up "$NAME"
+        ;;
+    down)
+        NAME="$2"
+        /usr/bin/wg-quick down "$NAME" || true
+        rm -f "/etc/wireguard/${NAME}.conf"
+        ;;
+    wg-show)
+        exec /usr/bin/wg show "$2" dump
+        ;;
+    *)
+        echo "Usage: vpn-helper up <conf_path> | down <name> | wg-show <name>" >&2
+        exit 1
+        ;;
+esac

@@ -4,9 +4,8 @@ from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
 
-CONFIG_DIR = Path.home() / ".config" / "wireguard-gui"
-WG_QUICK   = "/usr/bin/wg-quick"
-WG         = "/usr/bin/wg"
+CONFIG_DIR  = Path.home() / ".config" / "wireguard-gui"
+VPN_HELPER  = "/opt/wireguard-gui/vpn-helper"
 
 
 @dataclass
@@ -25,8 +24,7 @@ class WgInfo:
 
 
 def _run(args: list, input_data: str = None, privileged: bool = False) -> subprocess.CompletedProcess:
-    """Run a command. privileged=True uses sudo -n (never shows a password dialog)."""
-    cmd = (["sudo", "-n"] + args) if privileged else args
+    cmd = (["pkexec"] + args) if privileged else args
     return subprocess.run(cmd, capture_output=True, text=True, input=input_data, timeout=30)
 
 
@@ -88,7 +86,7 @@ def get_net_stats(name: str) -> Optional[NetStats]:
 # ── WireGuard detail info (needs root) ───────────────────────────────────────
 
 def get_wg_info(name: str) -> Optional[WgInfo]:
-    r = _run([WG, "show", name, "dump"], privileged=True)
+    r = _run([VPN_HELPER, "wg-show", name], privileged=True)
     if r.returncode != 0:
         return None
     lines = [l for l in r.stdout.strip().splitlines() if l]
@@ -109,9 +107,11 @@ def get_wg_info(name: str) -> Optional[WgInfo]:
 # ── Tunnel lifecycle (needs root) ─────────────────────────────────────────────
 
 def toggle_tunnel(name: str, enable: bool) -> tuple[bool, str]:
-    conf_path = str(_config_dir() / f"{name}.conf")
-    action = "up" if enable else "down"
-    r = _run([WG_QUICK, action, conf_path], privileged=True)
+    if enable:
+        conf_path = str(_config_dir() / f"{name}.conf")
+        r = _run([VPN_HELPER, "up", conf_path], privileged=True)
+    else:
+        r = _run([VPN_HELPER, "down", name], privileged=True)
     if r.returncode == 0:
         return True, ""
     return False, (r.stderr or r.stdout).strip()

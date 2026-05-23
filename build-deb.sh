@@ -24,10 +24,16 @@ install -d "$BUILD/usr/local/bin"
 install -d "$BUILD/usr/share/applications"
 install -d "$BUILD/usr/share/doc/wireguard-gui"
 install -d "$BUILD/usr/share/icons/hicolor/scalable/apps"
+install -d "$BUILD/usr/share/polkit-1/actions"
 
 # ── App files ─────────────────────────────────────────────────────────────────
-install -m 644 "$SCRIPT_DIR"/*.py        "$BUILD/opt/wireguard-gui/"
+install -m 644 "$SCRIPT_DIR"/*.py          "$BUILD/opt/wireguard-gui/"
 install -m 644 "$SCRIPT_DIR/wireguard.svg" "$BUILD/opt/wireguard-gui/wireguard.svg"
+install -m 755 "$SCRIPT_DIR/vpn-helper"   "$BUILD/opt/wireguard-gui/vpn-helper"
+
+# ── Polkit policy ─────────────────────────────────────────────────────────────
+install -m 644 "$SCRIPT_DIR/com.github.wireguard-gui.policy" \
+    "$BUILD/usr/share/polkit-1/actions/com.github.wireguard-gui.policy"
 
 # ── Icon ──────────────────────────────────────────────────────────────────────
 install -m 644 "$SCRIPT_DIR/wireguard.svg" \
@@ -64,7 +70,7 @@ Package: $PKG
 Version: $VERSION
 Architecture: $ARCH
 Maintainer: Sévag Derboghossian <derboghossiansevag@gmail.com>
-Depends: python3 (>= 3.10), python3-gi, python3-gi-cairo, gir1.2-gtk-3.0, wireguard-tools, sudo
+Depends: python3 (>= 3.10), python3-gi, python3-gi-cairo, gir1.2-gtk-3.0, wireguard-tools, policykit-1
 Recommends: gir1.2-ayatanaappindicator3-0.1 | gir1.2-appindicator3-0.1
 Homepage: https://github.com/Derbosoft/wireguard-gui
 Description: GTK graphical interface for WireGuard VPN tunnels
@@ -80,27 +86,6 @@ cat > "$BUILD/DEBIAN/postinst" <<'EOF'
 #!/bin/bash
 set -e
 
-# ── Sudoers: passwordless access only for wg-quick and wg ────────────────────
-SUDOERS_FILE=/etc/sudoers.d/wireguard-gui
-
-REAL_USER="${SUDO_USER:-}"
-if [[ -z "$REAL_USER" || "$REAL_USER" == "root" ]]; then
-    REAL_USER="$(logname 2>/dev/null || true)"
-fi
-if [[ -z "$REAL_USER" || "$REAL_USER" == "root" ]]; then
-    REAL_USER="$(who | grep -E '\(:[0-9]' | awk '{print $1}' | head -1 2>/dev/null || true)"
-fi
-
-if [[ -n "$REAL_USER" && "$REAL_USER" != "root" ]]; then
-    cat > "$SUDOERS_FILE" <<SUDOERS
-# WireGuard GUI — passwordless VPN management
-$REAL_USER ALL=(root) NOPASSWD: /usr/bin/wg-quick, /usr/bin/wg
-SUDOERS
-    chmod 440 "$SUDOERS_FILE"
-
-fi
-
-# ── Desktop integration ───────────────────────────────────────────────────────
 update-desktop-database /usr/share/applications 2>/dev/null || true
 gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
 
@@ -116,10 +101,10 @@ cat > "$BUILD/DEBIAN/postrm" <<'EOF'
 #!/bin/bash
 set -e
 if [ "$1" = "purge" ]; then
-    rm -f /etc/sudoers.d/wireguard-gui
     rm -rf /opt/wireguard-gui
 fi
 rm -f /usr/share/icons/hicolor/scalable/apps/wireguard-gui.svg
+rm -f /usr/share/polkit-1/actions/com.github.wireguard-gui.policy
 update-desktop-database /usr/share/applications 2>/dev/null || true
 gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
 EOF
