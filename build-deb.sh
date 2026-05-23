@@ -24,9 +24,14 @@ install -d "$BUILD/opt/wireguard-gui"
 install -d "$BUILD/usr/local/bin"
 install -d "$BUILD/usr/share/applications"
 install -d "$BUILD/usr/share/doc/wireguard-gui"
+install -d "$BUILD/usr/share/icons/hicolor/scalable/apps"
 
 # ── App files ─────────────────────────────────────────────────────────────────
 install -m 644 "$SCRIPT_DIR"/*.py "$BUILD/opt/wireguard-gui/"
+install -m 644 "$SCRIPT_DIR/wireguard.svg" "$BUILD/opt/wireguard-gui/wireguard.svg"
+
+# ── Icon (system theme) ───────────────────────────────────────────────────────
+install -m 644 "$SCRIPT_DIR/wireguard.svg" "$BUILD/usr/share/icons/hicolor/scalable/apps/wireguard-gui.svg"
 
 # ── setup-sudoers.sh (optional helper bundled with the package) ───────────────
 cat > "$BUILD/opt/wireguard-gui/setup-sudoers.sh" <<'SUDOERS_SCRIPT'
@@ -67,7 +72,7 @@ Name=WireGuard
 GenericName=VPN Manager
 Comment=Manage WireGuard VPN tunnels
 Exec=wireguard-gui
-Icon=network-vpn
+Icon=wireguard-gui
 Terminal=false
 Type=Application
 Categories=Network;Security;
@@ -99,6 +104,7 @@ cat > "$BUILD/DEBIAN/postinst" <<'EOF'
 #!/bin/bash
 set -e
 update-desktop-database /usr/share/applications 2>/dev/null || true
+gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
 echo ""
 echo "WireGuard GUI installed successfully!"
 echo "  Launch from terminal : wireguard-gui"
@@ -117,7 +123,9 @@ if [ "$1" = "purge" ]; then
     rm -f /etc/sudoers.d/wireguard-gui
     rm -rf /opt/wireguard-gui
 fi
+rm -f /usr/share/icons/hicolor/scalable/apps/wireguard-gui.svg
 update-desktop-database /usr/share/applications 2>/dev/null || true
+gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
 EOF
 chmod 755 "$BUILD/DEBIAN/postrm"
 

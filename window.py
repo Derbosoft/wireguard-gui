@@ -1,5 +1,6 @@
 import threading
 import time
+import os
 
 import gi
 gi.require_version("Gtk", "3.0")
@@ -7,6 +8,8 @@ from gi.repository import Gtk, GLib, Pango
 
 import backend
 from editor import TunnelEditorDialog
+
+_ICON_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "wireguard.svg")
 
 
 # ── Tunnel row widget ─────────────────────────────────────────────────────────
@@ -120,7 +123,10 @@ class MainWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="WireGuard")
         self.set_default_size(620, 520)
-        self.set_icon_name("network-vpn")
+        if os.path.exists(_ICON_PATH):
+            self.set_icon_from_file(_ICON_PATH)
+        else:
+            self.set_icon_name("wireguard-gui")
 
         self._rows: dict[str, TunnelRow] = {}
         self._tray = None  # injected after construction

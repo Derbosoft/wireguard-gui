@@ -40,6 +40,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 $RUN mkdir -p "$APP_DIR"
 $RUN cp "$SCRIPT_DIR"/*.py "$APP_DIR/"
 $RUN chmod 644 "$APP_DIR"/*.py
+$RUN cp "$SCRIPT_DIR/wireguard.svg" "$APP_DIR/wireguard.svg"
+$RUN chmod 644 "$APP_DIR/wireguard.svg"
+
+# ── Icon (system theme) ───────────────────────────────────────────────────────
+$RUN mkdir -p /usr/share/icons/hicolor/scalable/apps
+$RUN cp "$SCRIPT_DIR/wireguard.svg" /usr/share/icons/hicolor/scalable/apps/wireguard-gui.svg
+$RUN chmod 644 /usr/share/icons/hicolor/scalable/apps/wireguard-gui.svg
+$RUN gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
 
 # ── Launcher ──────────────────────────────────────────────────────────────────
 echo "[3/5] Création du lanceur..."
@@ -57,7 +65,7 @@ Name=WireGuard
 GenericName=Gestionnaire VPN
 Comment=Gérer les tunnels WireGuard
 Exec=wireguard-gui
-Icon=network-vpn
+Icon=wireguard-gui
 Terminal=false
 Type=Application
 Categories=Network;Security;
