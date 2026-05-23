@@ -80,12 +80,10 @@ cat > "$BUILD/DEBIAN/postinst" <<'EOF'
 #!/bin/bash
 set -e
 
-# ── Sudoers: auto-configure passwordless access for the installing user ────────
+# ── Sudoers: passwordless access only for wg-quick and wg ────────────────────
 SUDOERS_FILE=/etc/sudoers.d/wireguard-gui
 
-# Detect the real (non-root) user who ran sudo to install the package
 REAL_USER="${SUDO_USER:-}"
-
 if [[ -z "$REAL_USER" || "$REAL_USER" == "root" ]]; then
     REAL_USER="$(logname 2>/dev/null || true)"
 fi
@@ -95,10 +93,24 @@ fi
 
 if [[ -n "$REAL_USER" && "$REAL_USER" != "root" ]]; then
     cat > "$SUDOERS_FILE" <<SUDOERS
-# WireGuard GUI — passwordless tunnel management
-$REAL_USER ALL=(root) NOPASSWD: /usr/bin/wg-quick up *, /usr/bin/wg-quick down *, /usr/bin/wg show * dump, /usr/bin/wg show, /usr/bin/ls /etc/wireguard, /usr/bin/cat /etc/wireguard/*.conf, /usr/bin/tee /etc/wireguard/*.conf, /usr/bin/chmod 600 /etc/wireguard/*.conf, /usr/bin/rm /etc/wireguard/*.conf
+# WireGuard GUI — passwordless VPN management
+$REAL_USER ALL=(root) NOPASSWD: /usr/bin/wg-quick up *, /usr/bin/wg-quick down *, /usr/bin/wg show * dump, /usr/bin/wg show
 SUDOERS
     chmod 440 "$SUDOERS_FILE"
+
+    # ── Migrate existing configs from /etc/wireguard/ if readable ────────────
+    USER_HOME=$(getent passwd "$REAL_USER" | cut -d: -f6)
+    CONF_DIR="$USER_HOME/.config/wireguard-gui"
+    mkdir -p "$CONF_DIR"
+    chown "$REAL_USER" "$CONF_DIR"
+    if [[ -d /etc/wireguard ]]; then
+        for f in /etc/wireguard/*.conf; do
+            [[ -f "$f" ]] || continue
+            dest="$CONF_DIR/$(basename "$f")"
+            [[ -f "$dest" ]] && continue   # don't overwrite existing
+            cp "$f" "$dest" 2>/dev/null && chown "$REAL_USER" "$dest" && chmod 600 "$dest" || true
+        done
+    fi
 fi
 
 # ── Desktop integration ───────────────────────────────────────────────────────

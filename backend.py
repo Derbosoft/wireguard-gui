@@ -1,13 +1,12 @@
 import subprocess
-import os
 import urllib.request
 from pathlib import Path
 from dataclasses import dataclass
 from typing import Optional
 
-WIREGUARD_DIR = Path("/etc/wireguard")
-WG_QUICK = "/usr/bin/wg-quick"
-WG      = "/usr/bin/wg"
+CONFIG_DIR = Path.home() / ".config" / "wireguard-gui"
+WG_QUICK   = "/usr/bin/wg-quick"
+WG         = "/usr/bin/wg"
 
 
 @dataclass
@@ -26,9 +25,14 @@ class WgInfo:
 
 
 def _run(args: list, input_data: str = None, privileged: bool = False) -> subprocess.CompletedProcess:
-    """Run a command, optionally via sudo -n (never pkexec — no password prompt ever)."""
+    """Run a command. privileged=True uses sudo -n (never shows a password dialog)."""
     cmd = (["sudo", "-n"] + args) if privileged else args
     return subprocess.run(cmd, capture_output=True, text=True, input=input_data, timeout=30)
+
+
+def _config_dir() -> Path:
+    CONFIG_DIR.mkdir(parents=True, exist_ok=True)
+    return CONFIG_DIR
 
 
 def format_bytes(n: int) -> str:
@@ -47,18 +51,10 @@ def format_elapsed(seconds: int) -> str:
     return f"{seconds // 3600}h {(seconds % 3600) // 60}min"
 
 
-# ── Tunnel discovery ──────────────────────────────────────────────────────────
+# ── Tunnel discovery (no root needed) ────────────────────────────────────────
 
 def get_tunnel_names() -> list[str]:
-    try:
-        if os.access(WIREGUARD_DIR, os.R_OK):
-            return sorted(f.stem for f in WIREGUARD_DIR.glob("*.conf"))
-    except Exception:
-        pass
-    r = _run(["/usr/bin/ls", str(WIREGUARD_DIR)], privileged=True)
-    if r.returncode == 0:
-        return sorted(f[:-5] for f in r.stdout.split() if f.endswith(".conf"))
-    return []
+    return sorted(f.stem for f in _config_dir().glob("*.conf"))
 
 
 # ── Status & stats (no root needed) ──────────────────────────────────────────
@@ -89,7 +85,7 @@ def get_net_stats(name: str) -> Optional[NetStats]:
     return None
 
 
-# ── WireGuard detail info ─────────────────────────────────────────────────────
+# ── WireGuard detail info (needs root) ───────────────────────────────────────
 
 def get_wg_info(name: str) -> Optional[WgInfo]:
     r = _run([WG, "show", name, "dump"], privileged=True)
@@ -110,43 +106,42 @@ def get_wg_info(name: str) -> Optional[WgInfo]:
     )
 
 
-# ── Tunnel lifecycle ──────────────────────────────────────────────────────────
+# ── Tunnel lifecycle (needs root) ─────────────────────────────────────────────
 
 def toggle_tunnel(name: str, enable: bool) -> tuple[bool, str]:
+    conf_path = str(_config_dir() / f"{name}.conf")
     action = "up" if enable else "down"
-    r = _run([WG_QUICK, action, name], privileged=True)
+    r = _run([WG_QUICK, action, conf_path], privileged=True)
     if r.returncode == 0:
         return True, ""
     return False, (r.stderr or r.stdout).strip()
 
 
-# ── Config file management ────────────────────────────────────────────────────
+# ── Config file management (no root needed — stored in ~/.config/wireguard-gui/) ──
 
 def read_config(name: str) -> str:
-    path = WIREGUARD_DIR / f"{name}.conf"
     try:
-        return path.read_text()
-    except PermissionError:
-        r = _run(["/usr/bin/cat", str(path)], privileged=True)
-        return r.stdout if r.returncode == 0 else ""
+        return (_config_dir() / f"{name}.conf").read_text()
+    except Exception:
+        return ""
 
 
 def save_config(name: str, content: str) -> tuple[bool, str]:
-    dest = str(WIREGUARD_DIR / f"{name}.conf")
-    # tee reads from stdin and writes to the file as root — single call, no temp file
-    r = _run(["/usr/bin/tee", dest], input_data=content, privileged=True)
-    if r.returncode != 0:
-        return False, "Impossible d'écrire dans /etc/wireguard/. Réinstallez l'application."
-    _run(["/usr/bin/chmod", "600", dest], privileged=True)
-    return True, ""
+    try:
+        path = _config_dir() / f"{name}.conf"
+        path.write_text(content)
+        path.chmod(0o600)
+        return True, ""
+    except Exception as e:
+        return False, str(e)
 
 
 def delete_config(name: str) -> tuple[bool, str]:
-    path = str(WIREGUARD_DIR / f"{name}.conf")
-    r = _run(["/usr/bin/rm", path], privileged=True)
-    if r.returncode == 0:
+    try:
+        (_config_dir() / f"{name}.conf").unlink()
         return True, ""
-    return False, (r.stderr or r.stdout).strip()
+    except Exception as e:
+        return False, str(e)
 
 
 def import_config(src_path: str) -> tuple[bool, str, str]:
