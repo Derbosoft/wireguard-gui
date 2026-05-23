@@ -224,6 +224,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._si_hs.get_style_context().add_class("dim-label")
         bar.pack_end(self._si_hs, False, False, 0)
 
+        self._si_public_ip = Gtk.Label()
+        bar.pack_end(self._si_public_ip, False, False, 0)
+
         return bar
 
     # ── Data loading & refresh ────────────────────────────────────────────────
@@ -274,11 +277,27 @@ class MainWindow(Gtk.ApplicationWindow):
             return
         row.set_busy(True)
 
+        to_disable = []
+        if enable:
+            for other_name, other_row in self._rows.items():
+                if other_name != name and backend.is_active(other_name):
+                    to_disable.append(other_name)
+                    other_row.set_busy(True)
+
         def _worker():
+            for other_name in to_disable:
+                backend.toggle_tunnel(other_name, False)
+                GLib.idle_add(self._after_disable, other_name)
             ok, err = backend.toggle_tunnel(name, enable)
             GLib.idle_add(self._after_toggle, name, enable, ok, err)
 
         threading.Thread(target=_worker, daemon=True).start()
+
+    def _after_disable(self, name: str):
+        row = self._rows.get(name)
+        if row:
+            row.update(False, None)
+            row.set_busy(False)
 
     def _after_toggle(self, name: str, enable: bool, ok: bool, err: str):
         row = self._rows.get(name)
@@ -292,6 +311,23 @@ class MainWindow(Gtk.ApplicationWindow):
                 f"Impossible de {'démarrer' if enable else 'arrêter'} « {name} »",
                 err,
             )
+            return
+        if enable and active:
+            self._si_name.set_markup(f"<b>{name}</b>")
+            self._si_endpoint.set_text("")
+            self._si_rx.set_text("")
+            self._si_tx.set_text("")
+            self._si_hs.set_text("")
+            self._si_public_ip.set_text("IP publique: …")
+            self._stats_bar.show()
+
+            def _fetch():
+                info = backend.get_wg_info(name)
+                GLib.idle_add(self._show_stats, name, info)
+                ip = backend.get_public_ip()
+                GLib.idle_add(self._update_public_ip_label, ip)
+
+            threading.Thread(target=_fetch, daemon=True).start()
 
     # ── Add / Import ──────────────────────────────────────────────────────────
 
@@ -395,6 +431,8 @@ class MainWindow(Gtk.ApplicationWindow):
         def _fetch():
             info = backend.get_wg_info(name)
             GLib.idle_add(self._show_stats, name, info)
+            ip = backend.get_public_ip()
+            GLib.idle_add(self._update_public_ip_label, ip)
 
         threading.Thread(target=_fetch, daemon=True).start()
 
@@ -412,7 +450,14 @@ class MainWindow(Gtk.ApplicationWindow):
             self._si_hs.set_text(f"Handshake: {backend.format_elapsed(elapsed)}")
         else:
             self._si_hs.set_text("Pas encore de handshake")
+        self._si_public_ip.set_text("IP publique: …")
         self._stats_bar.show()
+
+    def _update_public_ip_label(self, ip: str):
+        if ip:
+            self._si_public_ip.set_markup(f"IP publique: <b>{ip}</b>")
+        else:
+            self._si_public_ip.set_text("IP publique: indisponible")
 
     # ── Dialogs ───────────────────────────────────────────────────────────────
 

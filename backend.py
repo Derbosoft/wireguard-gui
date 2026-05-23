@@ -2,6 +2,7 @@ import subprocess
 import os
 import time
 import tempfile
+import urllib.request
 from pathlib import Path
 from dataclasses import dataclass, field
 from typing import Optional
@@ -75,6 +76,14 @@ def get_tunnel_names() -> list[str]:
 
 
 # ── Status & stats (no root needed) ──────────────────────────────────────────
+
+def get_public_ip() -> str:
+    try:
+        with urllib.request.urlopen("https://api.ipify.org", timeout=5) as r:
+            return r.read().decode().strip()
+    except Exception:
+        return ""
+
 
 def is_active(name: str) -> bool:
     r = subprocess.run(["ip", "link", "show", "dev", name], capture_output=True)
