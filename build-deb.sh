@@ -70,7 +70,7 @@ Package: $PKG
 Version: $VERSION
 Architecture: $ARCH
 Maintainer: Sévag Derboghossian <derboghossiansevag@gmail.com>
-Depends: python3 (>= 3.10), python3-gi, python3-gi-cairo, gir1.2-gtk-3.0, wireguard-tools, policykit-1
+Depends: python3 (>= 3.10), python3-gi, python3-gi-cairo, gir1.2-gtk-3.0, wireguard-tools
 Recommends: gir1.2-ayatanaappindicator3-0.1 | gir1.2-appindicator3-0.1
 Homepage: https://github.com/Derbosoft/wireguard-gui
 Description: GTK graphical interface for WireGuard VPN tunnels
@@ -86,6 +86,12 @@ cat > "$BUILD/DEBIAN/postinst" <<'EOF'
 #!/bin/bash
 set -e
 
+cat > /etc/sudoers.d/wireguard-gui <<'SUDOERS'
+# WireGuard GUI — passwordless VPN management for admin users
+%sudo ALL=(root) NOPASSWD: /opt/wireguard-gui/vpn-helper
+SUDOERS
+chmod 440 /etc/sudoers.d/wireguard-gui
+
 update-desktop-database /usr/share/applications 2>/dev/null || true
 gtk-update-icon-cache -f -t /usr/share/icons/hicolor 2>/dev/null || true
 
@@ -100,6 +106,7 @@ chmod 755 "$BUILD/DEBIAN/postinst"
 cat > "$BUILD/DEBIAN/postrm" <<'EOF'
 #!/bin/bash
 set -e
+rm -f /etc/sudoers.d/wireguard-gui
 if [ "$1" = "purge" ]; then
     rm -rf /opt/wireguard-gui
 fi

@@ -24,7 +24,7 @@ class WgInfo:
 
 
 def _run(args: list, input_data: str = None, privileged: bool = False) -> subprocess.CompletedProcess:
-    cmd = (["pkexec"] + args) if privileged else args
+    cmd = (["sudo", "-n"] + args) if privileged else args
     return subprocess.run(cmd, capture_output=True, text=True, input=input_data, timeout=30)
 
 
