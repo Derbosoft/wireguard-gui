@@ -1,11 +1,12 @@
+import threading
+
 import gi
 gi.require_version("Gtk", "3.0")
-from gi.repository import Gtk
+from gi.repository import Gtk, GLib
 
 try:
     gi.require_version("AyatanaAppIndicator3", "0.1")
-    from gi.repository import AyatanaAppIndicator3 as AppIndicator3, GLib
-    # Suppress the C-level deprecation warning (library still fully functional)
+    from gi.repository import AyatanaAppIndicator3 as AppIndicator3
     GLib.log_set_handler(
         "libayatana-appindicator",
         GLib.LogLevelFlags.LEVEL_WARNING,
@@ -33,7 +34,7 @@ class TrayIcon:
         else:
             self._setup_status_icon()
 
-    # ── AppIndicator (Ayatana or classic) ─────────────────────────────────────
+    # ── AppIndicator ──────────────────────────────────────────────────────────
 
     def _setup_indicator(self):
         self._indicator = AppIndicator3.Indicator.new(
@@ -67,7 +68,7 @@ class TrayIcon:
         menu = self._build_menu()
         menu.popup(None, None, Gtk.StatusIcon.position_menu, icon, button, ts)
 
-    # ── Menu shared by both modes ─────────────────────────────────────────────
+    # ── Menu ──────────────────────────────────────────────────────────────────
 
     def _build_menu(self) -> Gtk.Menu:
         menu = Gtk.Menu()
@@ -83,7 +84,6 @@ class TrayIcon:
             active = backend.is_active(name)
             item = Gtk.CheckMenuItem(label=name)
             item.set_active(active)
-            # capture name in closure
             item.connect("toggled", lambda mi, n=name: self._on_tray_toggle(n, mi.get_active()))
             menu.append(item)
 
@@ -98,17 +98,21 @@ class TrayIcon:
         return menu
 
     def _on_tray_toggle(self, name: str, enable: bool):
-        import threading
         def _worker():
+            if enable:
+                # Enforce exclusive VPN: disable any other active tunnel first
+                for other in backend.get_tunnel_names():
+                    if other != name and backend.is_active(other):
+                        backend.toggle_tunnel(other, False)
             backend.toggle_tunnel(name, enable)
-            from gi.repository import GLib
             GLib.idle_add(self.refresh_menu)
+            GLib.idle_add(self._window._load_tunnels)
+
         threading.Thread(target=_worker, daemon=True).start()
 
     def set_icon_active(self, any_active: bool):
-        icon_name = "network-vpn" if any_active else "network-vpn-disconnected"
+        icon_name = "network-vpn" if any_active else "network-offline"
         try:
-            icon_name = "network-vpn" if any_active else "network-offline"
             if _INDICATOR_MODE in ("ayatana", "app"):
                 self._indicator.set_icon_full(icon_name, "WireGuard")
             elif hasattr(self, "_icon"):
